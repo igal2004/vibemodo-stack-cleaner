@@ -1,12 +1,12 @@
 import 'dotenv/config';
 
-const requiredForEmbedded = ['SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET'];
+const requiredForEmbedded = ['SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET', 'SHOPIFY_APP_URL'];
 const requiredForAdminReads = ['SHOPIFY_SHOP_DOMAIN', 'SHOPIFY_ADMIN_ACCESS_TOKEN'];
 const defaultScopes = ['read_themes', 'read_apps'];
 
 export function getRuntimeConfig() {
   const shopDomain = normalizeShopDomain(process.env.SHOPIFY_SHOP_DOMAIN || '');
-  const requiredScopes = parseList(process.env.SHOPIFY_REQUIRED_SCOPES || defaultScopes.join(','));
+  const requiredScopes = parseList(process.env.SHOPIFY_SCOPES || process.env.SHOPIFY_REQUIRED_SCOPES || defaultScopes.join(','));
   const missingRequired = [
     ...missing(requiredForEmbedded),
     ...missing(requiredForAdminReads)
@@ -19,7 +19,8 @@ export function getRuntimeConfig() {
     requiredScopes,
     appBridge: {
       configured: requiredForEmbedded.every((key) => Boolean(process.env[key])),
-      apiKeyPresent: Boolean(process.env.SHOPIFY_API_KEY)
+      apiKeyPresent: Boolean(process.env.SHOPIFY_API_KEY),
+      appUrlPresent: Boolean(process.env.SHOPIFY_APP_URL)
     },
     adminApi: {
       configured: requiredForAdminReads.every((key) => Boolean(process.env[key])),
@@ -50,6 +51,7 @@ export function getPrivateConfig() {
     shopDomain: normalizeShopDomain(process.env.SHOPIFY_SHOP_DOMAIN || ''),
     accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',
     apiVersion: process.env.SHOPIFY_API_VERSION || '2026-01',
+    appUrl: process.env.SHOPIFY_APP_URL || process.env.RENDER_APP_URL || '',
     themeId: process.env.SHOPIFY_THEME_ID || '',
     storefrontUrl: process.env.STOREFRONT_URL || publicConfig.storefront.url,
     installedSignatures: parseJsonArray(process.env.INSTALLED_APP_SIGNATURES_JSON || '[]')

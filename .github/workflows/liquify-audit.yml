@@ -27,5 +27,8 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Verify Render alignment docs
+        run: npm run verify:render-alignment
+
       - name: Run Liquify Audit
         run: npm run audit:liquify

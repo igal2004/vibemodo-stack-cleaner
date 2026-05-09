@@ -12,6 +12,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "audit:liquify": "node scripts/liquify-audit.mjs",
+    "verify:render-alignment": "node scripts/verify-render-alignment.mjs",
+    "wet-test:status": "node scripts/verify-render-alignment.mjs --wet-test-status",
     "worker:scan": "node worker/liquid-worker.mjs"
   },
   "dependencies": {

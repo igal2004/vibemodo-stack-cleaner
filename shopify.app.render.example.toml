@@ -1,0 +1,35 @@
+# Render-aligned Shopify CLI config template for VIBEMODO Stack Cleaner.
+# Copy to shopify.app.render.toml only after the Partner app exists.
+# Do not commit secrets. client_id is public but app-specific; keep the placeholder until discovered from Partners.
+
+client_id = "REPLACE_WITH_STACK_CLEANER_RENDER_TEST_APP_CLIENT_ID"
+application_url = "https://vibemodo-stack-cleaner.onrender.com"
+embedded = true
+name = "VIBEMODO Stack Cleaner"
+handle = "vibemodo-stack-cleaner-render-test"
+
+[webhooks]
+api_version = "2026-01"
+
+[[webhooks.subscriptions]]
+topics = [ "app/uninstalled" ]
+uri = "/webhooks/app/uninstalled"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/data_request" ]
+uri = "/webhooks/customers/data_request"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/redact" ]
+uri = "/webhooks/customers/redact"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "shop/redact" ]
+uri = "/webhooks/shop/redact"
+
+[access_scopes]
+scopes = "read_themes,read_apps"
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://vibemodo-stack-cleaner.onrender.com/auth/callback" ]

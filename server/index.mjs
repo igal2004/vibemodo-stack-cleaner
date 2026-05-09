@@ -1,4 +1,5 @@
 import compression from 'compression';
+import crypto from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
 import fs from 'node:fs/promises';
@@ -29,6 +30,94 @@ app.use(
   })
 );
 app.use(compression());
+
+app.get('/health', (_request, response) => {
+  response.json({ ok: true, service: 'vibemodo-stack-cleaner' });
+});
+
+app.get('/ready', (_request, response) => {
+  const config = getRuntimeConfig();
+  response.status(config.configured ? 200 : 428).json({
+    ready: config.configured,
+    missingRequired: config.missingRequired
+  });
+});
+
+app.get('/privacy', (_request, response) => {
+  response.type('html').send(`<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>VIBEMODO Stack Cleaner Privacy</title></head>
+  <body>
+    <main>
+      <h1>VIBEMODO Stack Cleaner Privacy</h1>
+      <p>This app performs read-only Shopify storefront and theme script audits when configured.</p>
+      <p>Secrets, access tokens, and session tokens are not exposed in the UI, docs, or audit logs.</p>
+      <p>Customer data request, customer redact, and shop redact webhooks are present for Shopify compliance routing.</p>
+    </main>
+  </body>
+</html>`);
+});
+
+app.get('/auth', (request, response) => {
+  const config = getRuntimeConfig();
+  const shop = String(request.query.shop || '').trim();
+
+  if (!config.appBridge.apiKeyPresent || !config.adminApi.shopDomainPresent || !config.appBridge.configured) {
+    response.status(428).json({
+      message: 'OAuth cannot start until SHOPIFY_API_KEY, SHOPIFY_API_SECRET, and SHOPIFY_APP_URL are configured.',
+      missingRequired: config.missingRequired
+    });
+    return;
+  }
+
+  if (!shop.endsWith('.myshopify.com')) {
+    response.status(400).json({ message: 'Valid shop query parameter is required.' });
+    return;
+  }
+
+  const appUrl = process.env.SHOPIFY_APP_URL || process.env.RENDER_APP_URL;
+  const scopes = config.requiredScopes.join(',');
+  const redirectUri = `${appUrl}/auth/callback`;
+  const state = crypto.randomBytes(16).toString('hex');
+  const url = new URL(`https://${shop}/admin/oauth/authorize`);
+  url.searchParams.set('client_id', process.env.SHOPIFY_API_KEY);
+  url.searchParams.set('scope', scopes);
+  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('state', state);
+
+  response.redirect(url.toString());
+});
+
+app.get('/auth/callback', (request, response) => {
+  const valid = verifyShopifyQueryHmac(request.query, process.env.SHOPIFY_API_SECRET || '');
+
+  if (!valid) {
+    response.status(401).json({ message: 'Shopify OAuth callback HMAC verification failed.' });
+    return;
+  }
+
+  response.status(501).json({
+    message: 'OAuth callback route is present and HMAC-gated, but persistent OAuth session storage is not implemented in this repository yet.',
+    status: 'blocked',
+    nextRequirement: 'Add governed session storage before marking dev-store install/open wet-test passed.'
+  });
+});
+
+app.post(
+  ['/webhooks/app/uninstalled', '/webhooks/customers/data_request', '/webhooks/customers/redact', '/webhooks/shop/redact'],
+  express.raw({ type: 'application/json' }),
+  (request, response) => {
+    const verified = verifyWebhookHmac(request.body, request.get('X-Shopify-Hmac-Sha256'), process.env.SHOPIFY_API_SECRET || '');
+
+    if (!verified) {
+      response.status(401).json({ message: 'Webhook HMAC verification failed.' });
+      return;
+    }
+
+    response.status(200).json({ ok: true });
+  }
+);
+
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/config', (_request, response) => {
@@ -156,4 +245,34 @@ function warn(source, message) {
 
 function errorEntry(source, message) {
   return { level: 'error', source, message, at: new Date().toISOString() };
+}
+
+function verifyShopifyQueryHmac(query, secret) {
+  if (!secret || !query.hmac) return false;
+
+  const rest = { ...query };
+  const hmac = rest.hmac;
+  delete rest.hmac;
+  delete rest.signature;
+  const message = Object.keys(rest)
+    .sort()
+    .map((key) => `${key}=${Array.isArray(rest[key]) ? rest[key].join(',') : rest[key]}`)
+    .join('&');
+  const digest = crypto.createHmac('sha256', secret).update(message).digest('hex');
+
+  return safeEqual(String(hmac), digest);
+}
+
+function verifyWebhookHmac(body, header, secret) {
+  if (!secret || !header || !body) return false;
+
+  const digest = crypto.createHmac('sha256', secret).update(body).digest('base64');
+  return safeEqual(String(header), digest);
+}
+
+function safeEqual(left, right) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
