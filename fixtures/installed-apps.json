@@ -1,0 +1,8 @@
+[
+  {
+    "id": "klaviyo",
+    "name": "Klaviyo",
+    "domains": ["cdn.shopify.com"],
+    "signatures": ["klaviyo-onsite"]
+  }
+]

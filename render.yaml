@@ -1,0 +1,23 @@
+services:
+  - type: worker
+    name: vibemodo-stack-cleaner-worker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: SHOPIFY_SHOP_DOMAIN
+        sync: false
+      - key: SHOPIFY_ADMIN_ACCESS_TOKEN
+        sync: false
+      - key: SHOPIFY_API_VERSION
+        value: "2026-01"
+      - key: SHOPIFY_REQUIRED_SCOPES
+        value: "read_themes,write_themes,read_apps"
+      - key: BACKUP_DIR
+        value: /data/backups
+      - key: SCAN_RATE_LIMIT_MS
+        value: "650"
+    disk:
+      name: stack-cleaner-backups
+      mountPath: /data
+      sizeGB: 1
