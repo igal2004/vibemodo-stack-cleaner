@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "node server/index.mjs",
+    "start": "node server/index.mjs",
+    "start:local": "NODE_ENV=production PORT=5183 node server/index.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
@@ -12,18 +15,19 @@
     "worker:scan": "node worker/liquid-worker.mjs"
   },
   "dependencies": {
+    "@shopify/polaris": "^13.9.5",
     "@vitejs/plugin-react": "^5.0.0",
-    "lucide-react": "^0.468.0",
-    "vite": "^6.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "compression": "^1.8.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.0.0"
   },
   "devDependencies": {
-    "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
     "eslint-plugin-react": "^7.37.2",
-    "eslint-plugin-react-hooks": "^5.1.0",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17"
+    "eslint-plugin-react-hooks": "^5.1.0"
   }
 }

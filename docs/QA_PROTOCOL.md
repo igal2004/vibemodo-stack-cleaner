@@ -1,45 +1,66 @@
 # VIBEMODO Stack Cleaner QA Protocol
 
-## Core safety checks
+## Configuration honesty
 
-1. Run `npm run audit:liquify`.
-2. Use a fixture that contains `{{ content_for_header }}` and `{{ content_for_layout }}`.
-3. Trigger Safe Delete on an orphan script.
-4. Confirm a backup snapshot is created before the script is removed.
-5. Confirm protected Liquid markers remain in the edited theme.
+1. Start the app with no `.env`.
+2. Open `/api/config`.
+3. Confirm missing variables are listed without exposing secrets.
+4. Call `POST /api/scan`.
+5. Confirm HTTP `428` and a clear message such as `Missing required Shopify configuration`.
+6. Confirm the Polaris UI shows "not configured" and does not render fake scripts.
 
-## Edge case: shared CDN domains
+## Real Shopify scan
 
-Two installed apps can share a CDN host, including common domains such as Google Tag Manager or Shopify extension CDN paths. The scanner must never classify ownership by domain alone.
+1. Configure `SHOPIFY_SHOP_DOMAIN`, `SHOPIFY_ADMIN_ACCESS_TOKEN`, `SHOPIFY_API_KEY`, and `SHOPIFY_API_SECRET`.
+2. Grant only the minimum read scopes first: `read_themes,read_apps`.
+3. Run `POST /api/scan`.
+4. Confirm Audit Trail includes:
+   - configuration validation
+   - Shopify Admin GraphQL shop context
+   - storefront HTML fetch URL
+   - theme file scan result or exact missing `SHOPIFY_THEME_ID` requirement
+5. Confirm no script is labeled orphan unless a real installed-app signature inventory is configured.
 
-Expected behavior:
-- Match by domain plus app-specific signatures, script path, query ID, or known snippet token.
-- Mark a script as `review` when only the CDN domain matches.
-- Block automatic deletion for shared-domain scripts unless an installed-app signature mismatch is explicit.
+## Shared CDN edge case
 
-## Rollback safety test
-
-1. Start with the seed `theme.liquid`.
-2. Safe Delete `https://cdn.abandoned-cart-pro.com/recover.js`.
-3. Verify the script no longer appears in the preview.
-4. Click Rollback.
-5. Verify the exact previous `theme.liquid` content is restored.
-6. Confirm the rollback action consumes or archives the backup so repeated clicks cannot restore stale state unexpectedly.
-
-## Shopify rate-limit test
-
-Bulk theme inspections must use a throttled queue.
+Two apps can share a CDN domain, including Google Tag Manager or Shopify extension CDN paths.
 
 Expected behavior:
-- Use `SCAN_RATE_LIMIT_MS` with a default of `650`.
-- Inspect one theme asset at a time unless Shopify response headers allow more throughput.
-- Back off on HTTP `429` and retry only after the `Retry-After` value.
-- Prefer rendered HTML scan first, then inspect theme files only for scripts that need deletion evidence.
+- Never classify ownership by domain alone.
+- Require domain plus configured signature token.
+- Mark unmatched scripts as `unattributed`, not automatically orphaned.
+- Keep remediation as "review only" unless the script is present in a specific theme file.
 
-## Manual review gates
+## Theme file safety
 
-Do not auto-delete:
-- Payment, checkout, consent, analytics governance, or fraud scripts.
-- Scripts where the app match is based on shared CDN domain only.
-- Inline scripts without a stable external `src`.
-- Theme code inside `{% schema %}`, `{% javascript %}`, or merchant-authored sections.
+1. Set `SHOPIFY_THEME_ID` to a real theme GID.
+2. Confirm the backend uses GraphQL `theme(id).files` for `layout/theme.liquid`.
+3. Confirm `read_themes` failures are surfaced as missing requirement text.
+4. Confirm `POST /api/remediate` stages only and does not call a mutation.
+
+## Rollback and mutation gate
+
+Rollback is not enabled because mutations are not enabled. Before production mutation support:
+- Create a backup snapshot before any write.
+- Show a Liquid diff preview.
+- Require explicit merchant approval.
+- Record mutation actor, file, checksum, and rollback ID.
+- Add a tested restore path before enabling `write_themes`.
+
+## Rate limits
+
+Expected behavior:
+- Use low-cost GraphQL reads.
+- Avoid bulk theme traversal by default.
+- Inspect storefront HTML first.
+- Inspect `layout/theme.liquid` only when `SHOPIFY_THEME_ID` is configured.
+- Surface GraphQL throttle or scope errors exactly in Audit Trail.
+
+## App Store readiness
+
+Checklist:
+- Polaris-native UI.
+- App Bridge meta/script present.
+- No fake reviews, installs, billing events, merchant activity, or recommendation claims.
+- Privacy-safe Audit Trail with no access token logging.
+- No paid action or billing commitment without explicit approval.

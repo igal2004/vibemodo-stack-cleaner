@@ -18,7 +18,8 @@ export default [
         console: 'readonly',
         process: 'readonly',
         URL: 'readonly',
-        setTimeout: 'readonly'
+        setTimeout: 'readonly',
+        fetch: 'readonly'
       },
       parserOptions: {
         ecmaFeatures: { jsx: true }

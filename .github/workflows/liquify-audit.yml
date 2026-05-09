@@ -1,4 +1,4 @@
-name: Liquify Audit
+name: Lint Build Audit
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  audit:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,7 +21,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build dashboard
+      - name: Lint
+        run: npm run lint
+
+      - name: Build app
         run: npm run build
 
       - name: Run Liquify Audit
