@@ -21,11 +21,13 @@ SHOPIFY_API_SECRET=your_partner_app_api_secret
 SHOPIFY_APP_URL=https://vibemodo-stack-cleaner.onrender.com
 RENDER_APP_URL=https://vibemodo-stack-cleaner.onrender.com
 SHOPIFY_DEV_STORE_DOMAIN=vibemodo-seo-test.myshopify.com
-SHOPIFY_SHOP_DOMAIN=example.myshopify.com
+SHOPIFY_SHOP_DOMAIN=vibemodo-seo-test.myshopify.com
 SHOPIFY_ADMIN_ACCESS_TOKEN=shpat_xxx
 SHOPIFY_API_VERSION=2026-01
 SHOPIFY_SCOPES=read_themes,read_apps
 SHOPIFY_REQUIRED_SCOPES=read_themes,read_apps
+DATABASE_URL=postgresql://user:password@host:5432/database
+SESSION_SECRET=replace_with_generated_secret
 SHOPIFY_THEME_ID=gid://shopify/OnlineStoreTheme/000000000
 STOREFRONT_URL=https://example.myshopify.com
 INSTALLED_APP_SIGNATURES_JSON=[{"name":"Example App","domains":["cdn.example-app.com"],"signatures":["example-app"]}]
@@ -36,6 +38,7 @@ INSTALLED_APP_SIGNATURES_JSON=[{"name":"Example App","domains":["cdn.example-app
 ## API
 
 - `GET /api/config`: returns safe configuration status with no secrets.
+- `GET /api/install/status`: returns OAuth install and session-storage status with no token values.
 - `POST /api/scan`: performs read-only Shopify Admin GraphQL and storefront HTML scan. Returns `428` when required config is missing.
 - `POST /api/remediate`: stages a remediation task only. It does not mutate Shopify theme files.
 

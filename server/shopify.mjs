@@ -28,6 +28,35 @@ export async function adminGraphql(config, query, variables = {}) {
   return payload;
 }
 
+export async function exchangeOfflineToken({ shopDomain, code, apiKey, apiSecret }) {
+  const endpoint = `https://${shopDomain}/admin/oauth/access_token`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      client_id: apiKey,
+      client_secret: apiSecret,
+      code
+    })
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload?.access_token) {
+    const error = new Error(`Shopify OAuth token exchange failed with HTTP ${response.status}`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+
+  return {
+    accessToken: payload.access_token,
+    scope: payload.scope || ''
+  };
+}
+
 export async function loadShopContext(config) {
   return adminGraphql(
     config,

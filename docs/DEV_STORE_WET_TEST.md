@@ -2,7 +2,7 @@
 
 ## Status
 
-- Current status: **Blocked / Render alignment pending**
+- Current status: **Blocked / Not Render-aligned**
 - Reason: this repository does not yet have verified live Render service evidence, active `shopify.app.render.toml`, or Shopify Partner Dashboard parity proof for Stack Cleaner.
 - Completion rule: do not mark Shopify runtime behavior complete until the app is installed, opened, and scanned in the VIBEMODO development store through the Render URL.
 
@@ -49,11 +49,13 @@ read_themes,read_apps
 | `SHOPIFY_APP_URL` Render parity | Render alignment pending | `.env.example`, `render.yaml`, and `shopify.app.render.example.toml` document the intended Render URL |
 | Partner Dashboard App URL parity | Blocked | No Partner Dashboard evidence available in repo |
 | OAuth callback parity | Render alignment pending | `shopify.app.render.example.toml` includes the Render callback |
-| Dev-store install | Blocked | Cannot pass until Render service, Partner app config, and OAuth session persistence are active |
+| Dev-store install | Blocked | Cannot pass until Render service, Partner app config, and database-backed OAuth session storage are active |
 | Embedded open in Shopify Admin | Blocked | Requires install on `vibemodo-seo-test.myshopify.com` |
 | Settings page reachable | Blocked | Requires embedded app open proof |
 | First read-only scan | Blocked | Requires configured Shopify credentials and installed app context |
 | Preview/fix/log governed flow | Blocked | Remediation endpoint stages only; no mutation approval gate is implemented |
+
+Local-only note: `/settings` is reachable at local server path `/settings`, but this does not satisfy the dev-store gate until opened from the Shopify Admin embedded app through Render.
 
 ## Commands
 

@@ -1,16 +1,14 @@
 import 'dotenv/config';
 
 const requiredForEmbedded = ['SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET', 'SHOPIFY_APP_URL'];
-const requiredForAdminReads = ['SHOPIFY_SHOP_DOMAIN', 'SHOPIFY_ADMIN_ACCESS_TOKEN'];
 const defaultScopes = ['read_themes', 'read_apps'];
 
 export function getRuntimeConfig() {
   const shopDomain = normalizeShopDomain(process.env.SHOPIFY_SHOP_DOMAIN || '');
   const requiredScopes = parseList(process.env.SHOPIFY_SCOPES || process.env.SHOPIFY_REQUIRED_SCOPES || defaultScopes.join(','));
-  const missingRequired = [
-    ...missing(requiredForEmbedded),
-    ...missing(requiredForAdminReads)
-  ];
+  const missingRequired = [...missing(requiredForEmbedded)];
+  const adminFallbackConfigured = Boolean(shopDomain && process.env.SHOPIFY_ADMIN_ACCESS_TOKEN);
+  const databaseConfigured = Boolean(process.env.DATABASE_URL);
 
   return {
     appName: 'VIBEMODO Stack Cleaner',
@@ -23,10 +21,17 @@ export function getRuntimeConfig() {
       appUrlPresent: Boolean(process.env.SHOPIFY_APP_URL)
     },
     adminApi: {
-      configured: requiredForAdminReads.every((key) => Boolean(process.env[key])),
+      configured: adminFallbackConfigured,
       shopDomainPresent: Boolean(shopDomain),
       tokenPresent: Boolean(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN),
-      apiVersion: process.env.SHOPIFY_API_VERSION || '2026-01'
+      apiVersion: process.env.SHOPIFY_API_VERSION || '2026-01',
+      note: 'Embedded runtime should use OAuth offline sessions. SHOPIFY_ADMIN_ACCESS_TOKEN is only an explicit fallback.'
+    },
+    sessionStorage: {
+      mode: databaseConfigured ? 'database' : 'memory',
+      configuredForWetTest: databaseConfigured,
+      databaseUrlPresent: databaseConfigured,
+      localOnlyFallback: !databaseConfigured
     },
     themeScan: {
       configured: Boolean(process.env.SHOPIFY_THEME_ID),
@@ -58,7 +63,7 @@ export function getPrivateConfig() {
   };
 }
 
-export function assertConfigured() {
+export function assertEmbeddedConfigured() {
   const config = getPrivateConfig();
 
   if (!config.configured) {
@@ -69,6 +74,16 @@ export function assertConfigured() {
   }
 
   return config;
+}
+
+export function buildShopifyAdminConfig({ shopDomain, accessToken }) {
+  const config = getPrivateConfig();
+
+  return {
+    ...config,
+    shopDomain: normalizeShopDomain(shopDomain),
+    accessToken
+  };
 }
 
 function missing(keys) {

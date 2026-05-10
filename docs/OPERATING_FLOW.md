@@ -3,7 +3,7 @@
 ## Current runtime status
 
 - Local implementation status: verified.
-- Shopify runtime status: **Blocked / Render alignment pending**.
+- Shopify runtime status: **Blocked / Not Render-aligned**.
 - Dev-store wet-test status: **Blocked** until Render service, Partner Dashboard parity, install, embedded open, and first read-only scan are verified.
 
 ## Safe scan flow
@@ -12,10 +12,11 @@
 2. App loads Polaris UI and App Bridge script context.
 3. App calls `/api/config`.
 4. If required configuration is missing, the app shows a clear blocked state and does not invent data.
-5. Merchant runs a read-only scan.
-6. Backend calls Shopify Admin GraphQL and storefront HTML only when configured.
-7. Audit Trail records each scan step and data source.
-8. Script findings remain `unattributed` unless a real installed-app signature inventory supports attribution.
+5. App checks `/api/install/status` for an OAuth offline session.
+6. Merchant runs a read-only scan.
+7. Backend calls Shopify Admin GraphQL and storefront HTML only when configured and installed.
+8. Audit Trail records each scan step and data source.
+9. Script findings remain `unattributed` unless a real installed-app signature inventory supports attribution.
 
 ## Remediation flow
 

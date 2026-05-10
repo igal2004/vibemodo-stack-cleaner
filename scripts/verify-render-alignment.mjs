@@ -60,7 +60,11 @@ if (!process.env.SHOPIFY_APP_URL) {
   warnings.push('SHOPIFY_APP_URL is not set in the current process; env parity cannot be verified live.');
 }
 
-const status = failures.length ? 'blocked' : warnings.length ? 'render_alignment_pending' : 'passed';
+if (!process.env.DATABASE_URL) {
+  warnings.push('DATABASE_URL is not set in the current process; wet-test-valid OAuth session storage cannot be verified live.');
+}
+
+const status = failures.length ? 'Blocked / Not Render-aligned' : warnings.length ? 'Render alignment pending' : 'Wet-test pending';
 const payload = {
   status,
   devStore,
@@ -68,7 +72,7 @@ const payload = {
   activeShopifyConfigExists,
   failures,
   warnings,
-  wetTestStatus: status === 'passed' ? 'Wet-test pending until installed/opened in Shopify Admin.' : 'Blocked / Not Render-aligned'
+  wetTestStatus: status === 'Wet-test pending' ? 'Wet-test pending' : 'Blocked / Not Render-aligned'
 };
 
 console.log(JSON.stringify(payload, null, 2));

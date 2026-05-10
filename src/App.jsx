@@ -44,6 +44,8 @@ function StackCleanerApp() {
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [staging, setStaging] = useState(null);
+  const [installStatus, setInstallStatus] = useState(null);
+  const [path, setPath] = useState(window.location.pathname);
 
   const loadConfig = useCallback(async () => {
     setLoadingConfig(true);
@@ -53,6 +55,8 @@ function StackCleanerApp() {
       const response = await fetch('/api/config');
       const payload = await response.json();
       setConfig(payload);
+      const installResponse = await fetch('/api/install/status');
+      setInstallStatus(await installResponse.json());
     } catch (error) {
       setConfigError(error.message);
     } finally {
@@ -122,6 +126,46 @@ function StackCleanerApp() {
     ]);
   }, [scan.scripts, stageRemediation]);
 
+  const openPath = useCallback((nextPath) => {
+    window.history.pushState({}, '', nextPath);
+    setPath(nextPath);
+  }, []);
+
+  if (path === '/settings') {
+    return (
+      <Page
+        title="Settings"
+        subtitle="Shopify runtime and Render wet-test configuration"
+        backAction={{ content: 'Dashboard', onAction: () => openPath('/') }}
+      >
+        <Layout>
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h2" variant="headingMd">
+                  Installation status
+                </Text>
+                <ConfigRow label="Installed on dev store" ok={Boolean(installStatus?.installed)} />
+                <ConfigRow label="Database session storage" ok={Boolean(installStatus?.sessionStorage?.configuredForWetTest)} />
+                <ConfigRow label="Render-aligned URL configured" ok={Boolean(config?.appBridge?.appUrlPresent)} />
+                <Text as="p" tone="subdued">
+                  Status: {installStatus?.status || 'Blocked'}
+                </Text>
+                {installStatus?.requirements?.length ? (
+                  <List>
+                    {installStatus.requirements.map((requirement) => (
+                      <List.Item key={requirement}>{requirement}</List.Item>
+                    ))}
+                  </List>
+                ) : null}
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
+
   return (
     <Page
       title="VIBEMODO Stack Cleaner"
@@ -131,7 +175,10 @@ function StackCleanerApp() {
         onAction: runScan,
         disabled: scanning
       }}
-      secondaryActions={[{ content: 'Refresh config', onAction: loadConfig }]}
+      secondaryActions={[
+        { content: 'Settings', onAction: () => openPath('/settings') },
+        { content: 'Refresh config', onAction: loadConfig }
+      ]}
     >
       <BlockStack gap="400">
         {loadingConfig ? (
@@ -232,6 +279,8 @@ function StackCleanerApp() {
                   </Text>
                   <ConfigRow label="Embedded App Bridge" ok={Boolean(config?.appBridge?.configured)} />
                   <ConfigRow label="Admin GraphQL API" ok={Boolean(config?.adminApi?.configured)} />
+                  <ConfigRow label="OAuth session installed" ok={Boolean(installStatus?.installed)} />
+                  <ConfigRow label="Database session storage" ok={Boolean(config?.sessionStorage?.configuredForWetTest)} />
                   <ConfigRow label="Theme file scan" ok={Boolean(config?.themeScan?.configured)} />
                   <Divider />
                   <Text as="p" tone="subdued">

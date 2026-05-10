@@ -6,8 +6,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyScripts, extractExternalScripts, summarizeScripts } from '../src/lib/scanner.js';
-import { assertConfigured, getRuntimeConfig } from './config.mjs';
-import { loadShopContext, loadThemeLiquid } from './shopify.mjs';
+import { assertEmbeddedConfigured, buildShopifyAdminConfig, getPrivateConfig, getRuntimeConfig } from './config.mjs';
+import {
+  consumeOAuthState,
+  deleteOfflineSession,
+  ensureSessionStorage,
+  getOfflineSession,
+  getSessionStorageStatus,
+  saveOAuthState,
+  saveOfflineSession
+} from './session-store.mjs';
+import { exchangeOfflineToken, loadShopContext, loadThemeLiquid } from './shopify.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -32,7 +41,11 @@ app.use(
 app.use(compression());
 
 app.get('/health', (_request, response) => {
-  response.json({ ok: true, service: 'vibemodo-stack-cleaner' });
+  response.json({
+    ok: true,
+    service: 'vibemodo-stack-cleaner',
+    sessionStorage: getSessionStorageStatus()
+  });
 });
 
 app.get('/ready', (_request, response) => {
@@ -62,7 +75,7 @@ app.get('/auth', (request, response) => {
   const config = getRuntimeConfig();
   const shop = String(request.query.shop || '').trim();
 
-  if (!config.appBridge.apiKeyPresent || !config.adminApi.shopDomainPresent || !config.appBridge.configured) {
+  if (!config.appBridge.configured) {
     response.status(428).json({
       message: 'OAuth cannot start until SHOPIFY_API_KEY, SHOPIFY_API_SECRET, and SHOPIFY_APP_URL are configured.',
       missingRequired: config.missingRequired
@@ -79,6 +92,8 @@ app.get('/auth', (request, response) => {
   const scopes = config.requiredScopes.join(',');
   const redirectUri = `${appUrl}/auth/callback`;
   const state = crypto.randomBytes(16).toString('hex');
+  saveOAuthState({ state, shopDomain: shop });
+
   const url = new URL(`https://${shop}/admin/oauth/authorize`);
   url.searchParams.set('client_id', process.env.SHOPIFY_API_KEY);
   url.searchParams.set('scope', scopes);
@@ -88,7 +103,7 @@ app.get('/auth', (request, response) => {
   response.redirect(url.toString());
 });
 
-app.get('/auth/callback', (request, response) => {
+app.get('/auth/callback', async (request, response) => {
   const valid = verifyShopifyQueryHmac(request.query, process.env.SHOPIFY_API_SECRET || '');
 
   if (!valid) {
@@ -96,22 +111,52 @@ app.get('/auth/callback', (request, response) => {
     return;
   }
 
-  response.status(501).json({
-    message: 'OAuth callback route is present and HMAC-gated, but persistent OAuth session storage is not implemented in this repository yet.',
-    status: 'blocked',
-    nextRequirement: 'Add governed session storage before marking dev-store install/open wet-test passed.'
-  });
+  const shop = String(request.query.shop || '').trim();
+  const code = String(request.query.code || '').trim();
+  const state = String(request.query.state || '').trim();
+
+  if (!shop.endsWith('.myshopify.com') || !code || !consumeOAuthState({ state, shopDomain: shop })) {
+    response.status(401).json({ message: 'Shopify OAuth callback state validation failed.' });
+    return;
+  }
+
+  try {
+    await ensureSessionStorage();
+    const token = await exchangeOfflineToken({
+      shopDomain: shop,
+      code,
+      apiKey: process.env.SHOPIFY_API_KEY,
+      apiSecret: process.env.SHOPIFY_API_SECRET
+    });
+    await saveOfflineSession({
+      shopDomain: shop,
+      accessToken: token.accessToken,
+      scope: token.scope
+    });
+
+    response.redirect(`/?shop=${encodeURIComponent(shop)}`);
+  } catch (error) {
+    response.status(error.status || 500).json({
+      message: error.message,
+      status: 'blocked',
+      nextRequirement: 'Verify Shopify Partner app credentials, callback URL parity, and DATABASE_URL session storage before wet-test signoff.'
+    });
+  }
 });
 
 app.post(
   ['/webhooks/app/uninstalled', '/webhooks/customers/data_request', '/webhooks/customers/redact', '/webhooks/shop/redact'],
   express.raw({ type: 'application/json' }),
-  (request, response) => {
+  async (request, response) => {
     const verified = verifyWebhookHmac(request.body, request.get('X-Shopify-Hmac-Sha256'), process.env.SHOPIFY_API_SECRET || '');
 
     if (!verified) {
       response.status(401).json({ message: 'Webhook HMAC verification failed.' });
       return;
+    }
+
+    if (request.path === '/webhooks/app/uninstalled') {
+      await deleteOfflineSession(request.get('X-Shopify-Shop-Domain'));
     }
 
     response.status(200).json({ ok: true });
@@ -124,12 +169,31 @@ app.get('/api/config', (_request, response) => {
   response.json(getRuntimeConfig());
 });
 
-app.post('/api/scan', async (_request, response) => {
+app.get('/api/install/status', async (request, response) => {
+  const shop = resolveShopFromRequest(request);
+  const session = await getOfflineSession(shop);
+  const storage = getSessionStorageStatus();
+
+  response.json({
+    shop,
+    installed: Boolean(session),
+    status: session ? (storage.configuredForWetTest ? 'Wet-test pending' : 'Local only') : 'Blocked',
+    sessionStorage: storage,
+    requirements: session
+      ? []
+      : ['Install the app through Shopify OAuth on the dev store before running an embedded runtime scan.']
+  });
+});
+
+app.post('/api/scan', async (request, response) => {
   const auditTrail = [];
 
   try {
-    const config = assertConfigured();
-    auditTrail.push(info('config', 'Required Shopify configuration is present.'));
+    assertEmbeddedConfigured();
+    auditTrail.push(info('config', 'Required embedded Shopify configuration is present.'));
+
+    const config = await resolveScanConfig(request);
+    auditTrail.push(info('session', `Using ${config.sessionSource} Shopify Admin token source.`));
 
     const shopContext = await loadShopContext(config);
     auditTrail.push(info('shopify_admin_graphql', 'Loaded shop context and current app access scopes from Admin GraphQL.'));
@@ -221,6 +285,50 @@ app.listen(port, () => {
   console.log(`VIBEMODO Stack Cleaner listening on ${port}`);
 });
 
+async function resolveScanConfig(request) {
+  const shop = resolveShopFromRequest(request);
+  const session = await getOfflineSession(shop);
+
+  if (session) {
+    return {
+      ...buildShopifyAdminConfig({
+        shopDomain: session.shopDomain,
+        accessToken: session.accessToken
+      }),
+      storefrontUrl: process.env.STOREFRONT_URL || `https://${session.shopDomain}`,
+      sessionSource: getSessionStorageStatus().mode
+    };
+  }
+
+  const fallback = getPrivateConfig();
+
+  if (fallback.adminApi.configured) {
+    return {
+      ...fallback,
+      sessionSource: 'env-admin-token-fallback'
+    };
+  }
+
+  const error = new Error('No Shopify OAuth offline session is installed for this shop, and no explicit Admin API fallback token is configured.');
+  error.status = 428;
+  error.requirements = [
+    'Install the app through /auth on the Render URL for the dev store.',
+    'Set DATABASE_URL for wet-test-valid session storage.',
+    'Do not mark wet-test passed while using memory session storage.'
+  ];
+  throw error;
+}
+
+function resolveShopFromRequest(request) {
+  return normalizeShopDomain(
+    request.query.shop ||
+      process.env.SHOPIFY_DEV_STORE_DOMAIN ||
+      process.env.DEV_STORE_DOMAIN ||
+      process.env.SHOPIFY_SHOP_DOMAIN ||
+      ''
+  );
+}
+
 async function fetchStorefrontHtml(url) {
   const response = await fetch(url, {
     headers: {
@@ -275,4 +383,8 @@ function safeEqual(left, right) {
   const rightBuffer = Buffer.from(right);
 
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function normalizeShopDomain(value) {
+  return String(value || '').replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
 }

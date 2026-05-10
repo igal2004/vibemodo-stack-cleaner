@@ -2,7 +2,7 @@
 
 ## Current status
 
-- Status: **Blocked / Render alignment pending**
+- Status: **Blocked / Not Render-aligned**
 - This app has a Render-aligned Shopify CLI template at `shopify.app.render.example.toml`.
 - This app does **not** yet have a verified active `shopify.app.render.toml` with a Stack Cleaner Partner app client ID.
 - No Shopify API key, app secret, access token, session token, or OAuth credential is committed.
@@ -48,8 +48,9 @@ INSTALLED_APP_SIGNATURES_JSON
 ## Runtime notes
 
 - The current backend exposes `/api/config`, `/api/scan`, and `/api/remediate`.
-- `/auth` and `/auth/callback` routes are present for Render URL parity checks; callback is HMAC-gated.
-- OAuth session persistence is not complete, so dev-store install/open remains blocked until governed storage is added and verified.
+- `/auth` and `/auth/callback` routes are present; callback validates Shopify HMAC and OAuth state before token exchange.
+- Offline session persistence is implemented with `DATABASE_URL` Postgres storage and an explicitly local-only memory fallback.
+- Dev-store install/open remains blocked until Render service, Partner app config, and database-backed session storage are active and verified.
 - Privacy and uninstall webhook routes are present and HMAC-gated.
 - `/api/scan` fails with HTTP `428` when required Shopify configuration is missing.
 - `/api/remediate` stages a remediation task only and does not mutate Shopify.

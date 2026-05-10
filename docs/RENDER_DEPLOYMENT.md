@@ -2,17 +2,19 @@
 
 ## Current status
 
-- Status: **Blocked / Render alignment pending**
+- Status: **Blocked / Not Render-aligned**
 - Expected web service: `vibemodo-stack-cleaner`
 - Expected app URL: `https://vibemodo-stack-cleaner.onrender.com`
 - Worker service: not required for the current read-only scan architecture.
-- Database/Redis: not required until OAuth session persistence, background jobs, or approval-gated mutations are added.
+- Database: required for wet-test-valid OAuth offline session storage through `DATABASE_URL`.
+- Redis: not required until background jobs are added.
 
 ## Evidence
 
 - `render.yaml` exists and defines a Docker web service.
 - `SHOPIFY_APP_URL` and `RENDER_APP_URL` are environment variables, not hardcoded secrets.
 - On 2026-05-09, `curl -I https://vibemodo-stack-cleaner.onrender.com` returned `HTTP/2 404` with `x-render-routing: no-server`, so a live Render service is not verified.
+- `DATABASE_URL` is required for wet-test-valid OAuth offline session storage. Without it, the app uses memory storage and must remain local-only.
 
 ## Required Render env
 
@@ -21,6 +23,8 @@ SHOPIFY_APP_URL=https://vibemodo-stack-cleaner.onrender.com
 RENDER_APP_URL=https://vibemodo-stack-cleaner.onrender.com
 SHOPIFY_API_KEY=<from Shopify Partner app>
 SHOPIFY_API_SECRET=<secret, Render env only>
+DATABASE_URL=<Render Postgres connection string or governed database URL>
+SESSION_SECRET=<generated secret, Render env only>
 SHOPIFY_DEV_STORE_DOMAIN=vibemodo-seo-test.myshopify.com
 DEV_STORE_DOMAIN=vibemodo-seo-test.myshopify.com
 SHOPIFY_SCOPES=read_themes,read_apps
@@ -34,9 +38,9 @@ INSTALLED_APP_SIGNATURES_JSON=<non-secret signature map or managed config>
 
 ## Health check
 
-- Render health check path: `/api/config`
-- Expected configured response: `configured: true`
-- Expected unconfigured response: HTTP `200` with `configured: false` and missing variable names.
+- Render health check path: `/health`
+- Expected response: HTTP `200` with `ok: true`, service name, and session-storage mode.
+- Configuration status path: `/api/config`
 
 ## Deployment rule
 
